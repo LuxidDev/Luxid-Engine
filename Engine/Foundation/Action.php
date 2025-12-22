@@ -1,15 +1,15 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Foundation;
 
-use engine\system\middlewares\BaseMiddleware;
+use Luxid\Middleware\BaseMiddleware;
 
 class Action
 {
     public string $frame = 'app';   // default to app (main frame)
     public string $activity = '';
     /**
-     * @var \engine\system\middlewares\BaseMiddleware[]
+     * @var \Luxid\Middleware\BaseMiddleware[]
      */
     protected array $middlewares = [];
 

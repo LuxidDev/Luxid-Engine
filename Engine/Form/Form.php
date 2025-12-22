@@ -1,9 +1,9 @@
 <?php
 
-namespace engine\system\form;
+namespace Luxid\Form;
 
-use engine\system\Entity;
-use engine\system\form\InputField;
+use Luxid\ORM\Entity;
+use Luxid\Form\InputField;
 
 class Form
 {

@@ -1,6 +1,13 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Foundation;
+
+use Luxid\Routing\Router;
+use Luxid\Http\Response;
+use Luxid\Http\Request;
+use Luxid\Http\Session;
+use Luxid\Database\Database;
+use Luxid\Database\DbEntity;
 
 class Application
 {

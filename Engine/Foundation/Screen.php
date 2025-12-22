@@ -1,6 +1,6 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Foundation;
 
 class Screen
 {

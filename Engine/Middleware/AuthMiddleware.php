@@ -1,9 +1,9 @@
 <?php
 
-namespace engine\system\middlewares;
+namespace Luxid\Middleware;
 
-use engine\system\Application;
-use engine\system\exception\ForbiddenException;
+use Luxid\Foundation\Application;
+use Luxid\Exceptions\ForbiddenException;
 
 class AuthMiddleware extends BaseMiddleware
 {

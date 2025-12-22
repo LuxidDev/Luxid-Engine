@@ -1,6 +1,8 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\ORM;
+
+use Luxid\Foundation\Application;
 
 abstract class Entity
 {

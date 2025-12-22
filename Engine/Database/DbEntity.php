@@ -1,11 +1,14 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Database;
+
+use Luxid\ORM\Entity;
+use Luxid\Foundation\Application;
 
 /**
     This would be an entity which would be like an ORM
     and would map the User's Entity into the Database Table.
-    Base Active Record Class
+    Base Active Record Class (extends Luxid\ORM\Entity)
 */
 
 abstract class DbEntity extends Entity
@@ -55,4 +58,3 @@ abstract class DbEntity extends Entity
         return Application::$app->db->pdo->prepare($sqlStatement);
     }
 }
-

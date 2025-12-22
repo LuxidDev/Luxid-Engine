@@ -1,6 +1,8 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Database;
+
+use Luxid\Foundation\Application;
 
 class Database
 {

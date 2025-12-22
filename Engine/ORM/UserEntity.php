@@ -1,6 +1,8 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\ORM;
+
+use Luxid\Database\DbEntity;
 
 abstract class UserEntity extends DbEntity
 {

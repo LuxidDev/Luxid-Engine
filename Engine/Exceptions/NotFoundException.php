@@ -1,6 +1,6 @@
 <?php
 
-namespace engine\system\exception;
+namespace Luxid\Exceptions;
 
 use Exception;
 

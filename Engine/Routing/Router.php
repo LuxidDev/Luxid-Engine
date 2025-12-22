@@ -1,8 +1,11 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Routing;
 
-use engine\system\exception\NotFoundException;
+use Luxid\Exceptions\NotFoundException;
+use Luxid\Http\Response;
+use Luxid\Http\Request;
+use Luxid\Foundation\Application;
 
 class Router
 {
@@ -51,7 +54,7 @@ class Router
         // to make the action an object, not an instance
         if (is_array($callback)) {
             /**
-             * @var \engine\system\Action $action
+             * @var \Luxid\Foundation\Action $action $action
              */
             $action = new $callback[0]();
 

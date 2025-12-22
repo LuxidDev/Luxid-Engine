@@ -1,6 +1,6 @@
 <?php
 
-namespace engine\system;
+namespace Luxid\Http;
 
 class Session
 {

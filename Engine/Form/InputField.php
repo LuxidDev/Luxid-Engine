@@ -1,8 +1,8 @@
 <?php
 
-namespace engine\system\form;
+namespace Luxid\Form;
 
-use engine\system\Entity;
+use Luxid\ORM\Entity;
 
 class InputField extends BaseField
 {

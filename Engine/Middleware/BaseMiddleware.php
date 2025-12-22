@@ -1,6 +1,6 @@
 <?php
 
-namespace engine\system\middlewares;
+namespace Luxid\Middleware;
 
 abstract class BaseMiddleware
 {
