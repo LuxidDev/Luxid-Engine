@@ -1,19 +1,11 @@
 <?php
-// Engine/Http/Response.php
+
 namespace Luxid\Http;
 
-class Response
+use Luxid\Foundation\Application;
+
+trait ResponseHelper
 {
-    public function setStatusCode(int $code)
-    {
-        http_response_code($code);
-    }
-
-    public function warp(string $url)
-    {
-        header('Location: ' . $url);
-    }
-
     /**
      * Send JSON response
      */
@@ -46,5 +38,16 @@ class Response
             'message' => $message,
             'errors' => $errors
         ], $statusCode);
+    }
+
+    /**
+     * Redirect with flash message
+     */
+    public function redirectWith(string $url, string $key, string $message)
+    {
+        if (Application::$app) {
+            Application::$app->session->setFlash($key, $message);
+        }
+        $this->warp($url);
     }
 }

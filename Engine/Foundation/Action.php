@@ -6,8 +6,11 @@ use Luxid\Middleware\BaseMiddleware;
 
 class Action
 {
+    use ActionHelpers;
+
     public string $frame = 'app';   // default to app (main frame)
     public string $activity = '';
+
     /**
      * @var \Luxid\Middleware\BaseMiddleware[]
      */
@@ -25,11 +28,11 @@ class Action
 
     public function nova($screen, $data = [])
     {
-        return Application::$app->screen->renderScreen($screen, $data);
+        return $this->app()->screen->renderScreen($screen, $data);
     }
 
-    public function registerMiddleware(BaseMiddleware $middlware)
+    public function registerMiddleware(BaseMiddleware $middleware)
     {
-        $this->middlewares[] = $middlware;
+        $this->middlewares[] = $middleware;
     }
 }

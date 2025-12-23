@@ -18,7 +18,20 @@ class Request
 
     public function method()
     {
-        return strtolower($_SERVER['REQUEST_METHOD']);
+        // Support method override via _method parameter
+        $method = strtolower($_SERVER['REQUEST_METHOD']);
+
+        // Check for method overrid in POST data
+        if ($method === 'post' && isset($_POST['method'])) {
+            return strtolower($_POST['_method']);
+        }
+
+        // Check for method override in headers
+        if (isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'])) {
+            return strtolower($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']);
+        }
+
+        return $method;
     }
 
     public function getBody()
@@ -35,10 +48,34 @@ class Request
             foreach ($_GET as $key => $value) {
                 $body[$key] = filter_input(INPUT_GET, $key, FILTER_SANITIZE_SPECIAL_CHARS);
             }
-        }
-        if ($method === 'post') {
-            foreach ($_POST as $key => $value) {
-                $body[$key] = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
+        } else {
+            // Handle POST, PUT, PATCH, DELETE
+
+            // First check if it's JSON input
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $rawInput = file_get_contents('php://input');
+
+            if (strpos($contentType, 'application/json') !== false) {
+                // JSON input
+                $jsonData = json_decode($rawInput, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $body = $jsonData;
+                }
+            } else {
+                // Form data
+                if ($method === 'post') {
+                    foreach ($_POST as $key => $value) {
+                        $body[$key] = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
+                    }
+                }
+
+                // Also parse raw input for PUT/PATCH/DELETE
+                if (!empty($rawInput) && empty($body)) {
+                    parse_str($rawInput, $parsed);
+                    foreach ($parsed as $key => $value) {
+                        $body[$key] = filter_var($value, FILTER_SANITIZE_SPECIAL_CHARS);
+                    }
+                }
             }
         }
 
@@ -50,9 +87,37 @@ class Request
     {
         return $this->method() === 'get';
     }
+
     public function isPost()
     {
         return $this->method() === 'post';
+    }
+
+    public function isPut()
+    {
+        return $this->method() === 'put';
+    }
+
+    public function isPatch()
+    {
+        return $this->method() === 'patch';
+    }
+
+    public function isDelete()
+    {
+        return $this->method() === 'delete';
+    }
+
+    public function isJson()
+    {
+        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+        return strpos($contentType, 'application/json') !== false;
+    }
+
+    public function getJson()
+    {
+        $rawInput = file_get_contents('php://input');
+        return json_decode($rawInput, true);
     }
 
 }
