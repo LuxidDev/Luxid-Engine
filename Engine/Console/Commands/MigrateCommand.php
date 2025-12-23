@@ -1,5 +1,5 @@
 <?php
-// Engine/Console/Commands/MigrateCommand.php
+
 namespace Luxid\Console\Commands;
 
 use Luxid\Console\Command;
@@ -167,14 +167,26 @@ class MigrateCommand extends Command
             $dotenv->load();
         }
 
-        // Create config
-        $config = [
-            'db' => [
-                'dsn' => $_ENV['DB_DSN'] ?? '',
-                'user' => $_ENV['DB_USER'] ?? '',
-                'password' => $_ENV['DB_PASSWORD'] ?? '',
-            ],
-        ];
+        // Try to load the project's config file
+        $configFile = $rootPath . '/config/config.php';
+
+        if (file_exists($configFile)) {
+            // Load the actual project config
+            $config = require $configFile;
+        } else {
+            // Fallback to minimal config
+            $config = [
+                'db' => [
+                    'dsn' => $_ENV['DB_DSN'] ?? '',
+                    'user' => $_ENV['DB_USER'] ?? '',
+                    'password' => $_ENV['DB_PASSWORD'] ?? '',
+                ],
+                'userClass' => '', // Empty string for migrations
+            ];
+
+            $this->warning("Config file not found: config/config.php");
+            $this->line("Using minimal configuration for migrations");
+        }
 
         // Create application instance if not already created
         if (!isset(Application::$app)) {
