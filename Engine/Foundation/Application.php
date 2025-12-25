@@ -5,7 +5,7 @@ namespace Luxid\Foundation;
 use Luxid\Routing\Router;
 use Luxid\Http\Response;
 use Luxid\Http\Request;
-use Luxid\Http\Session;
+use Luxid\Http\SessionInterface;
 use Luxid\Database\Database;
 use Luxid\Database\DbEntity;
 
@@ -18,7 +18,7 @@ class Application
     public Router $router;
     public Request $request;
     public Response $response;
-    public Session $session;
+    public SessionInterface $session;
     public static Application $app;
     public ?Action $action = null;
     public Database $db;
@@ -34,19 +34,27 @@ class Application
 
         $this->request = new Request();
         $this->response = new Response();
-        $this->session = new Session();
+
+        // Only create Session if not in CLI mode
+        if (php_sapi_name() !== 'cli') {
+            $this->session = new \Luxid\Http\Session();
+        } else {
+            // Create a null session for CLI
+            $this->session = new \Luxid\Http\NullSession();
+        }
+
         $this->router = new Router($this->request, $this->response);
-
         $this->screen = new Screen();
-
         $this->db = new Database($config['db']);
-
         $this->user = null;
 
-        $primaryValue = $this->session->get('user');
-        if ($primaryValue !== null) {
-            $primaryKey = $this->userClass::primaryKey();
-            $this->user = $this->userClass::findOne([$primaryKey => $primaryValue]) ?? null;
+        // Only check session for user if session exists and is started
+        if ($this->session->isStarted()) {
+            $primaryValue = $this->session->get('user');
+            if ($primaryValue !== null) {
+                $primaryKey = $this->userClass::primaryKey();
+                $this->user = $this->userClass::findOne([$primaryKey => $primaryValue]) ?? null;
+            }
         }
     }
 
