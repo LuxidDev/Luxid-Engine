@@ -11,6 +11,14 @@
         }
     },
     "bin": ["juice"],
+    "scripts": {
+        "post-install-cmd": [
+            "chmod +x juice 2>/dev/null || true"
+        ],
+        "post-update-cmd": [
+            "chmod +x juice 2>/dev/null || true"
+        ]
+    },
     "authors": [
         {
             "name": "Jhay",
