@@ -90,7 +90,7 @@ class {$className}
     /**
      * Run the migration
      */
-    public function apply()
+    public function apply():void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -107,7 +107,7 @@ class {$className}
     /**
      * Reverse the migration
      */
-    public function down()
+    public function down(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -135,7 +135,7 @@ class {$className}
     /**
      * Run the migration
      */
-    public function apply()
+    public function apply(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -157,7 +157,7 @@ class {$className}
     /**
      * Reverse the migration
      */
-    public function down()
+    public function down(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -187,7 +187,7 @@ class {$className}
     /**
      * Run the migration
      */
-    public function apply()
+    public function apply(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -204,7 +204,7 @@ class {$className}
     /**
      * Reverse the migration
      */
-    public function down()
+    public function down(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 
@@ -232,7 +232,7 @@ class {$className}
     /**
      * Run the migration
      */
-    public function apply()
+    public function apply(): void
     {
         \$db = \\Luxid\\Foundation\\Application::\$app->db;
 

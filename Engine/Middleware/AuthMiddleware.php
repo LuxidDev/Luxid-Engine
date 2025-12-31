@@ -7,17 +7,25 @@ use Luxid\Exceptions\ForbiddenException;
 
 class AuthMiddleware extends BaseMiddleware
 {
-    public array $activity = [];
+    public array $publicActivities = [];
 
-    public function __construct(array $activity= [])
+    public function __construct(array $publicActivities = [])
     {
-        $this->activity = $activity;
+        $this->publicActivities = $publicActivities;
     }
 
     public function execute()
     {
+        // Skip if no action
+        if (Application::$app->action === null) {
+            return;
+        }
+
         if (Application::isGuest()) {
-            if (empty($this->activity) || in_array(Application::$app->action->activity, $this->activity)){
+            $currentActivity = Application::$app->action->activity;
+
+            // Check if this activity is in the public list
+            if (!in_array($currentActivity, $this->publicActivities)) {
                 throw new ForbiddenException();
             }
         }

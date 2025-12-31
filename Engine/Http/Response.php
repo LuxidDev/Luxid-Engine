@@ -1,5 +1,5 @@
 <?php
-// Engine/Http/Response.php
+
 namespace Luxid\Http;
 
 class Response

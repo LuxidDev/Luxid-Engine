@@ -70,9 +70,30 @@ class Application
         } catch (\Exception $e) {
             $this->response->setStatusCode($e->getCode());
 
-            echo $this->screen->renderScreen('_error', [
-                'exception' => $e
-            ]);
+            // Check if this is an API request
+            $path = $this->request->getPath();
+            $acceptHeader = $_SERVER['HTTP_ACCEPT'] ?? '';
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+
+            $isApiRequest = strpos($path, '/api/') === 0 ||
+                        strpos($acceptHeader, 'application/json') !== false ||
+                        strpos($contentType, 'application/json') !== false;
+
+            if ($isApiRequest) {
+                // Return JSON error for API requests
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'error' => $e->getMessage(),
+                    'code' => $e->getCode()
+                ]);
+            } else {
+                // Return HTML error for web requests
+                echo $this->screen->renderScreen('_error', [
+                    'exception' => $e
+                ]);
+            }
         }
     }
 
