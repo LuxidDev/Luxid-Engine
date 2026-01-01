@@ -68,7 +68,25 @@ class Application
         try {
             echo $this->router->resolve();
         } catch (\Exception $e) {
-            $this->response->setStatusCode($e->getCode());
+            // Get the exception code and ensure it's a valid HTTP status code
+            $code = $e->getCode();
+
+            // Convert to integer if needed
+            if (!is_int($code)) {
+                $code = (int)$code;
+            }
+
+            // Validate it's a proper HTTP status code (100-599)
+            if ($code < 100 || $code > 599) {
+                // For PDOExceptions and other non-HTTP exceptions, use 500
+                if ($e instanceof \PDOException) {
+                    $code = 500; // Internal Server Error for database issues
+                } else {
+                    $code = $e instanceof \Luxid\Exceptions\NotFoundException ? 404 : 500;
+                }
+            }
+
+            $this->response->setStatusCode($code);
 
             // Check if this is an API request
             $path = $this->request->getPath();
@@ -76,8 +94,8 @@ class Application
             $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 
             $isApiRequest = strpos($path, '/api/') === 0 ||
-                        strpos($acceptHeader, 'application/json') !== false ||
-                        strpos($contentType, 'application/json') !== false;
+                           strpos($acceptHeader, 'application/json') !== false ||
+                           strpos($contentType, 'application/json') !== false;
 
             if ($isApiRequest) {
                 // Return JSON error for API requests
@@ -86,7 +104,7 @@ class Application
                     'success' => false,
                     'message' => $e->getMessage(),
                     'error' => $e->getMessage(),
-                    'code' => $e->getCode()
+                    'code' => $code  // Use the validated code
                 ]);
             } else {
                 // Return HTML error for web requests
