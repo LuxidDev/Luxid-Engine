@@ -23,6 +23,11 @@ class Router
     ];
 
     /**
+     * @var array Tracks the last registered route for middleware attachment
+     */
+    protected ?array $lastRoute = null;
+
+    /**
      * @var array Middleware stack for route groups
      */
     protected array $middlewareStack = [];
@@ -32,7 +37,7 @@ class Router
         $this->request = $request;
         $this->response = $response;
 
-        // Initialie all HTTP method arrays
+        // Initialize all HTTP method arrays
         $this->routes = [
             'get' => [],
             'post' => [],
@@ -49,6 +54,9 @@ class Router
             'middleware' => []
         ];
 
+        // Track this as the last registered route
+        $this->lastRoute = ['method' => 'get', 'path' => $path];
+
         return $this;
     }
 
@@ -59,6 +67,9 @@ class Router
             'middleware' => []
         ];
 
+        // Track this as the last registered route
+        $this->lastRoute = ['method' => 'post', 'path' => $path];
+
         return $this;
     }
 
@@ -68,6 +79,10 @@ class Router
             'callback' => $callback,
             'middleware' => []
         ];
+
+        // Track this as the last registered route
+        $this->lastRoute = ['method' => 'put', 'path' => $path];
+
         return $this;
     }
 
@@ -77,6 +92,10 @@ class Router
             'callback' => $callback,
             'middleware' => []
         ];
+
+        // Track this as the last registered route
+        $this->lastRoute = ['method' => 'patch', 'path' => $path];
+
         return $this;
     }
 
@@ -86,21 +105,33 @@ class Router
             'callback' => $callback,
             'middleware' => []
         ];
+
+        // Track this as the last registered route
+        $this->lastRoute = ['method' => 'delete', 'path' => $path];
+
         return $this;
     }
 
     /**
      * Add middleware to the last registered route
+     *
+     * @param BaseMiddleware $middleware The middleware to add
      * @return static
      */
     public function middleware(BaseMiddleware $middleware)
     {
-        $method = $this->request->method();
-        $path = $this->request->getPath();
+        // Check if we have a last registered route
+        if ($this->lastRoute !== null) {
+            $method = $this->lastRoute['method'];
+            $path = $this->lastRoute['path'];
 
-        // Find the last registered route for this path and method
-        if (isset($this->routes[$method][$path])) {
-            $this->routes[$method][$path]['middleware'][] = $middleware;
+            // Add middleware to the route
+            if (isset($this->routes[$method][$path])) {
+                $this->routes[$method][$path]['middleware'][] = $middleware;
+            }
+
+            // Reset for next route
+            $this->lastRoute = null;
         }
 
         return $this;
@@ -108,6 +139,9 @@ class Router
 
     /**
      * Register multiple routes with middleware
+     *
+     * @param array $middleware Array of middleware instances
+     * @param callable $callback Function that defines routes
      */
     public function group(array $middleware, callable $callback)
     {
@@ -126,7 +160,7 @@ class Router
         $path = $this->request->getPath();
         $method = $this->request->method();
 
-        // check if route exisits
+        // check if route exists
         if (!isset($this->routes[$method][$path])) {
             throw new NotFoundException();
         }
@@ -164,7 +198,7 @@ class Router
         // Extract route parameters
         $params = $this->extractRouteParams($path);
 
-        // Execture callback with parameters
+        // Execute callback with parameters
         if (!empty($params)) {
             return call_user_func_array($callback, array_merge(
                 [$this->request, $this->response],
@@ -184,7 +218,7 @@ class Router
         $actualPath = $this->request->getPath();
         $params = [];
 
-        // sigh .. simple param extraction for now
+        // Simple param extraction for now
         // TODO: would enhance this shi later for more complex routing
         $routeParts = explode('/', $routePath);
         $actualParts = explode('/', $actualPath);
@@ -202,5 +236,22 @@ class Router
 
         return $params;
     }
-}
 
+    public function getRoutesForInspection(): array
+    {
+        $formattedRoutes = [];
+
+        foreach ($this->routes as $method => $methodRoutes) {
+            foreach ($methodRoutes as $path => $route) {
+                $formattedRoutes[] = [
+                    'method' => $method,
+                    'path' => $path,
+                    'callback' => $route['callback'],
+                    'middleware' => $route['middleware'] ?? []
+                ];
+            }
+        }
+
+        return $formattedRoutes;
+    }
+}

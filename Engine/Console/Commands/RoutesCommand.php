@@ -19,7 +19,7 @@ class RoutesCommand extends Command
 
         if (empty($routes)) {
             $this->warning("No routes found");
-            $this->line("Create routes in: \033[1;34m/routes/api.php\033[0m");
+            $this->line("Create routes in: \033[1;34m" . $this->getRoutesPath() . "/api.php\033[0m");
             return 0;
         }
 
@@ -29,7 +29,7 @@ class RoutesCommand extends Command
                 $route['method'],
                 $route['path'],
                 $route['handler'],
-                $route['middleware'] ?? '-'
+                $route['middleware']
             ];
         }
 
@@ -52,29 +52,29 @@ class RoutesCommand extends Command
 
         $content = file_get_contents($routesFile);
 
-        // Parse routes from file content
-        // This is a simplified parser - in real implementation, you'd want to parse the actual router calls
-        $pattern = '/\\$router->(get|post|put|patch|delete)\\(\\s*[\'"]([^\'"]+)[\'"]\\s*,\\s*([^)]+)\\)/';
+        // Clean up content for easier parsing
+        $content = str_replace(["\r", "\n", "\t"], ' ', $content);
+        $content = preg_replace('/\\s+/', ' ', $content);
 
-        if (preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
+        // Split by $router-> to find route definitions
+        $parts = explode('$router->', $content);
+
+        foreach ($parts as $part) {
+            // Look for route definitions
+            if (preg_match('/^(get|post|put|patch|delete)\(\\s*[\'"]([^\'"]+)[\'"]\\s*,\\s*([^,)]+)/', $part, $match)) {
+                // Check if the full route line has ->middleware(
+                $routeLine = '$router->' . substr($part, 0, 100); // Check first 100 chars
+                $hasMiddleware = strpos($routeLine, '->middleware(') !== false;
+
                 $routes[] = [
                     'method' => strtoupper($match[1]),
                     'path' => $match[2],
                     'handler' => trim($match[3]),
-                    'middleware' => $this->extractMiddleware($match[0])
+                    'middleware' => $hasMiddleware ? 'Yes' : 'No'
                 ];
             }
         }
 
         return $routes;
-    }
-
-    private function extractMiddleware(string $routeLine): string
-    {
-        if (strpos($routeLine, 'middleware') !== false) {
-            return 'Yes';
-        }
-        return 'No';
     }
 }

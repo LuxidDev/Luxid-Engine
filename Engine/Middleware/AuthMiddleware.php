@@ -16,18 +16,22 @@ class AuthMiddleware extends BaseMiddleware
 
     public function execute()
     {
-        // Skip if no action
+        // Skip if no action is set (can happen with closure routes)
         if (Application::$app->action === null) {
             return;
         }
 
-        if (Application::isGuest()) {
-            $currentActivity = Application::$app->action->activity;
+        // Skip if user is authenticated
+        if (!Application::isGuest()) {
+            return;
+        }
 
-            // Check if this activity is in the public list
-            if (!in_array($currentActivity, $this->publicActivities)) {
-                throw new ForbiddenException();
-            }
+        $currentActivity = Application::$app->action->activity ?? '';
+
+        // Check if this activity is in the public list
+        // If publicActivities is empty, NO activities are public (all require auth)
+        if (!in_array($currentActivity, $this->publicActivities)) {
+            throw new ForbiddenException();
         }
     }
 }
