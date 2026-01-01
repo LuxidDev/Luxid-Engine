@@ -3,6 +3,7 @@
 namespace Luxid\Console\Commands;
 
 use Luxid\Console\Command;
+use Luxid\Foundation\Application;
 
 class RoutesCommand extends Command
 {
@@ -15,7 +16,7 @@ class RoutesCommand extends Command
         $this->line("🛣️  Registered Routes");
         $this->line(str_repeat("─", 80));
 
-        $routes = $this->loadRoutes();
+        $routes = $this->loadRoutesFromRouter();
 
         if (empty($routes)) {
             $this->warning("No routes found");
@@ -41,7 +42,188 @@ class RoutesCommand extends Command
         return 0;
     }
 
-    private function loadRoutes(): array
+    private function loadRoutesFromRouter(): array
+    {
+        $routes = [];
+        $routesFile = $this->getRoutesPath() . '/api.php';
+
+        if (!file_exists($routesFile)) {
+            return $routes;
+        }
+
+        try {
+            // First, ensure autoloader is loaded
+            $autoloadFile = $this->getProjectRoot() . '/vendor/autoload.php';
+            if (!file_exists($autoloadFile)) {
+                $this->warning("Composer autoloader not found. Run: composer install");
+                return $this->loadRoutesFromFile();
+            }
+
+            require_once $autoloadFile;
+
+            // We need to bootstrap the application to load routes properly
+            // Load environment variables if .env exists
+            $envFile = $this->getProjectRoot() . '/.env';
+            if (file_exists($envFile)) {
+                $dotenv = \Dotenv\Dotenv::createImmutable($this->getProjectRoot());
+                $dotenv->safeLoad();
+            }
+
+            // Try to load the config file to get userClass
+            $configFile = $this->getConfigPath() . '/config.php';
+            $userClass = null;
+
+            if (file_exists($configFile)) {
+                $config = require $configFile;
+                $userClass = $config['userClass'] ?? null;
+            }
+
+            // If we couldn't get userClass from config, use a default or try to autodetect
+            if (!$userClass) {
+                // Try to autodetect User class
+                $possibleUserClasses = [
+                    'App\\Entities\\User',
+                    'App\\Models\\User',
+                    'App\\User'
+                ];
+
+                foreach ($possibleUserClasses as $className) {
+                    if (class_exists($className)) {
+                        $userClass = $className;
+                        break;
+                    }
+                }
+
+                // If still not found, use a mock class
+                if (!$userClass) {
+                    // Create a simple mock User class for CLI
+                    if (!class_exists('App\\Entities\\User')) {
+                        eval('namespace App\\Entities;
+                        class User extends \Luxid\ORM\UserEntity {
+                            public static function tableName(): string { return "users"; }
+                            public static function primaryKey(): string { return "id"; }
+                            public function attributes(): array { return []; }
+                            public function getDisplayName(): string { return ""; }
+                        }');
+                    }
+                    $userClass = 'App\\Entities\\User';
+                }
+            }
+
+            // Create a minimal configuration for CLI
+            $config = [
+                'db' => [
+                    'dsn' => $_ENV['DB_DSN'] ?? $_ENV['DB_HOST'] ?? 'mysql:host=localhost;dbname=test',
+                    'user' => $_ENV['DB_USER'] ?? 'root',
+                    'password' => $_ENV['DB_PASSWORD'] ?? ''
+                ],
+                'userClass' => $userClass
+            ];
+
+            // Create Application instance - this will work in CLI because we have NullSession
+            $app = new Application($this->getProjectRoot(), $config);
+
+            // Load the routes file - this populates the router
+            require $routesFile;
+
+            // Get routes from router using the new inspection method
+            $routerRoutes = $app->router->getRoutesForInspection();
+
+            // Format routes for display
+            foreach ($routerRoutes as $routerRoute) {
+                $callback = $routerRoute['callback'];
+                $middleware = $routerRoute['middleware'];
+
+                // Format the handler for display
+                $handler = $this->formatHandler($callback);
+
+                // Format middleware for display
+                $middlewareInfo = $this->formatMiddleware($middleware);
+
+                $routes[] = [
+                    'method' => strtoupper($routerRoute['method']),
+                    'path' => $routerRoute['path'],
+                    'handler' => $handler,
+                    'middleware' => $middlewareInfo
+                ];
+            }
+
+            // Sort routes by path for better readability
+            usort($routes, function($a, $b) {
+                return strcmp($a['path'], $b['path']);
+            });
+
+        } catch (\Exception $e) {
+            $this->warning("Could not load routes from router: " . $e->getMessage());
+            $this->line("Falling back to file parsing...");
+
+            // Fall back to file parsing if something goes wrong
+            $routes = $this->loadRoutesFromFile();
+        }
+
+        return $routes;
+    }
+
+    /**
+     * Format a callback for display
+     */
+    private function formatHandler($callback): string
+    {
+        if (is_string($callback)) {
+            // Screen name (string callback)
+            return $callback;
+        } elseif (is_array($callback)) {
+            // Action class and method
+            $className = is_object($callback[0]) ? get_class($callback[0]) : $callback[0];
+            $methodName = $callback[1] ?? '';
+
+            // Shorten class name if it's an App\Actions class
+            if (strpos($className, 'App\\Actions\\') === 0) {
+                $className = str_replace('App\\Actions\\', '', $className);
+            }
+
+            return '[' . $className . '::class, \'' . $methodName . '\']';
+        } elseif (is_callable($callback)) {
+            // Closure or callable
+            if ($callback instanceof \Closure) {
+                return 'Closure';
+            } else {
+                return 'Callable';
+            }
+        }
+
+        return 'Unknown';
+    }
+
+    /**
+     * Format middleware array for display
+     */
+    private function formatMiddleware(array $middleware): string
+    {
+        if (empty($middleware)) {
+            return 'No';
+        }
+
+        $middlewareNames = [];
+        foreach ($middleware as $mw) {
+            $className = get_class($mw);
+
+            // Shorten common Luxid middleware names
+            if (strpos($className, 'Luxid\\Middleware\\') === 0) {
+                $className = str_replace('Luxid\\Middleware\\', '', $className);
+            }
+
+            $middlewareNames[] = $className;
+        }
+
+        return implode(', ', $middlewareNames);
+    }
+
+    /**
+     * Fallback method to parse routes from file (regex-based)
+     * Used if we can't load the router
+     */
+    private function loadRoutesFromFile(): array
     {
         $routes = [];
         $routesFile = $this->getRoutesPath() . '/api.php';
@@ -54,14 +236,14 @@ class RoutesCommand extends Command
 
         // Clean up content for easier parsing
         $content = str_replace(["\r", "\n", "\t"], ' ', $content);
-        $content = preg_replace('/\\s+/', ' ', $content);
+        $content = preg_replace('/\s+/', ' ', $content);
 
         // Split by $router-> to find route definitions
         $parts = explode('$router->', $content);
 
         foreach ($parts as $part) {
             // Look for route definitions
-            if (preg_match('/^(get|post|put|patch|delete)\(\\s*[\'"]([^\'"]+)[\'"]\\s*,\\s*([^,)]+)/', $part, $match)) {
+            if (preg_match('/^(get|post|put|patch|delete)\(\s*[\'"]([^\'"]+)[\'"]\s*,\s*([^,)]+)/', $part, $match)) {
                 // Check if the full route line has ->middleware(
                 $routeLine = '$router->' . substr($part, 0, 100); // Check first 100 chars
                 $hasMiddleware = strpos($routeLine, '->middleware(') !== false;
