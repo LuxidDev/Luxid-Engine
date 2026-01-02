@@ -115,45 +115,31 @@ class RouteBuilder
     }
 
     /**
-     * Mark route as explicitly public
-     *
-     * @param array|bool $activities
-     *   - true: use PublicMiddleware (completely public)
-     *   - false|null: use default activity
-     *   - array: specific activities that are public
+     * Mark route as completely public (no auth checks at all)
+     * Uses PublicMiddleware
      */
-    public function open($activities = null): self
+    public function public(): self
     {
-        if ($activities === true) {
-            // Use PublicMiddleware for completely public route
-            $this->addPublicMiddleware();
-            $this->securityConfigured = true;
-        } elseif ($activities === false || $activities === null) {
-            // Default: use current activity as public
-            $activities = [$this->extractActivityFromCallback()];
-            $this->addAuthMiddleware($activities);
-            $this->securityConfigured = true;
-        } elseif (is_array($activities)) {
-            // Specific activities are public
-            $this->addAuthMiddleware($activities);
-            $this->securityConfigured = true;
-        } else {
-            throw new \InvalidArgumentException(
-                'open() accepts true, false, null, or an array of activity names'
-            );
-        }
-
+        $this->addPublicMiddleware();
+        $this->securityConfigured = true;
         $this->registerRouteIfNeeded();
         return $this;
     }
 
     /**
-     * Mark route as completely public (no auth checks at all)
-     * Alias for open(true)
+     * Mark route as open with specific public activities
+     * Uses AuthMiddleware with public activities list
      */
-    public function public(): self
+    public function open(array $activities = []): self
     {
-        return $this->open(true);
+        if (empty($activities)) {
+            $activities = [$this->extractActivityFromCallback()];
+        }
+
+        $this->addAuthMiddleware($activities);
+        $this->securityConfigured = true;
+        $this->registerRouteIfNeeded();
+        return $this;
     }
 
     /**
