@@ -12,25 +12,29 @@ class Router
 {
     public Request $request;
     public Response $response;
-    protected array $routes = [
-        /* 'get' => [
-            '/' => callback,
-            '/contact' => callback,
-        ],
-        'post' => [
-            '/user' => callback,
-        ], */
-    ];
-
-    /**
-     * @var array Tracks the last registered route for middleware attachment
-     */
+    protected array $routes = [];
     protected ?array $lastRoute = null;
+    protected array $middlewareStack = [];
 
     /**
-     * @var array Middleware stack for route groups
+     * @var array Group context stack
      */
-    protected array $middlewareStack = [];
+    private array $groupStack = [];
+
+    /**
+     * @var array Cached middleware per group stack hash
+     */
+    private array $groupMiddlewareCache = [];
+
+    /**
+     * @var array Pre-instantiated middleware instances
+     */
+    private array $middlewareInstances = [];
+
+    /**
+     * @var array Flattened middleware per route for faster resolution
+     */
+    private array $flattenedMiddleware = [];
 
     public function __construct(Request $request, Response $response)
     {
@@ -49,110 +53,366 @@ class Router
 
     public function get($path, $callback)
     {
+        $path = $this->applyGroupPrefix($path);
+        $groupMiddleware = $this->getCachedGroupMiddleware();
+
         $this->routes['get'][$path] = [
             'callback' => $callback,
-            'middleware' => []
+            'middleware' => [],
+            'groupMiddleware' => $groupMiddleware,
+            'groupAuth' => $this->getGroupAuth(),
+            'groupOpen' => $this->getGroupOpen()
         ];
 
-        // Track this as the last registered route
-        $this->lastRoute = ['method' => 'get', 'path' => $path];
+        // Pre-flatten middleware for this route
+        $this->flattenedMiddleware['get:' . $path] = array_merge(
+            $this->middlewareStack,
+            $groupMiddleware
+        );
 
+        $this->lastRoute = ['method' => 'get', 'path' => $path];
         return $this;
     }
 
     public function post($path, $callback)
     {
+        $path = $this->applyGroupPrefix($path);
+        $groupMiddleware = $this->getCachedGroupMiddleware();
+
         $this->routes['post'][$path] = [
             'callback' => $callback,
-            'middleware' => []
+            'middleware' => [],
+            'groupMiddleware' => $groupMiddleware,
+            'groupAuth' => $this->getGroupAuth(),
+            'groupOpen' => $this->getGroupOpen()
         ];
 
-        // Track this as the last registered route
-        $this->lastRoute = ['method' => 'post', 'path' => $path];
+        $this->flattenedMiddleware['post:' . $path] = array_merge(
+            $this->middlewareStack,
+            $groupMiddleware
+        );
 
+        $this->lastRoute = ['method' => 'post', 'path' => $path];
         return $this;
     }
 
     public function put($path, $callback)
     {
+        $path = $this->applyGroupPrefix($path);
+        $groupMiddleware = $this->getCachedGroupMiddleware();
+
         $this->routes['put'][$path] = [
             'callback' => $callback,
-            'middleware' => []
+            'middleware' => [],
+            'groupMiddleware' => $groupMiddleware,
+            'groupAuth' => $this->getGroupAuth(),
+            'groupOpen' => $this->getGroupOpen()
         ];
 
-        // Track this as the last registered route
-        $this->lastRoute = ['method' => 'put', 'path' => $path];
+        $this->flattenedMiddleware['put:' . $path] = array_merge(
+            $this->middlewareStack,
+            $groupMiddleware
+        );
 
+        $this->lastRoute = ['method' => 'put', 'path' => $path];
         return $this;
     }
 
     public function patch($path, $callback)
     {
+        $path = $this->applyGroupPrefix($path);
+        $groupMiddleware = $this->getCachedGroupMiddleware();
+
         $this->routes['patch'][$path] = [
             'callback' => $callback,
-            'middleware' => []
+            'middleware' => [],
+            'groupMiddleware' => $groupMiddleware,
+            'groupAuth' => $this->getGroupAuth(),
+            'groupOpen' => $this->getGroupOpen()
         ];
 
-        // Track this as the last registered route
-        $this->lastRoute = ['method' => 'patch', 'path' => $path];
+        $this->flattenedMiddleware['patch:' . $path] = array_merge(
+            $this->middlewareStack,
+            $groupMiddleware
+        );
 
+        $this->lastRoute = ['method' => 'patch', 'path' => $path];
         return $this;
     }
 
     public function delete($path, $callback)
     {
+        $path = $this->applyGroupPrefix($path);
+        $groupMiddleware = $this->getCachedGroupMiddleware();
+
         $this->routes['delete'][$path] = [
             'callback' => $callback,
-            'middleware' => []
+            'middleware' => [],
+            'groupMiddleware' => $groupMiddleware,
+            'groupAuth' => $this->getGroupAuth(),
+            'groupOpen' => $this->getGroupOpen()
         ];
 
-        // Track this as the last registered route
-        $this->lastRoute = ['method' => 'delete', 'path' => $path];
+        $this->flattenedMiddleware['delete:' . $path] = array_merge(
+            $this->middlewareStack,
+            $groupMiddleware
+        );
 
+        $this->lastRoute = ['method' => 'delete', 'path' => $path];
         return $this;
     }
 
     /**
      * Add middleware to the last registered route
-     *
-     * @param BaseMiddleware $middleware The middleware to add
-     * @return static
      */
     public function middleware(BaseMiddleware $middleware)
     {
-        // Check if we have a last registered route
         if ($this->lastRoute !== null) {
             $method = $this->lastRoute['method'];
             $path = $this->lastRoute['path'];
 
-            // Add middleware to the route
             if (isset($this->routes[$method][$path])) {
                 $this->routes[$method][$path]['middleware'][] = $middleware;
+                // Update flattened middleware
+                $cacheKey = $method . ':' . $path;
+                if (isset($this->flattenedMiddleware[$cacheKey])) {
+                    $this->flattenedMiddleware[$cacheKey][] = $middleware;
+                }
             }
 
-            // Reset for next route
             $this->lastRoute = null;
         }
 
         return $this;
     }
 
+
     /**
-     * Register multiple routes with middleware
-     *
-     * @param array $middleware Array of middleware instances
-     * @param callable $callback Function that defines routes
+     * Register multiple routes with group configuration
      */
-    public function group(array $middleware, callable $callback)
+    public function group(array $options, callable $callback)
     {
-        // Push middleware to stack
-        $this->middlewareStack = array_merge($this->middlewareStack, $middleware);
+        // Handle shorthand: ['auth'] -> ['auth' => true]
+        if (count($options) === 1 && isset($options[0]) && $options[0] === 'auth') {
+            $options = ['auth' => true];
+        }
 
-        // Execute route definitions
-        call_user_func($callback, $this);
+        // Normalize options with inheritance
+        $currentGroup = $this->getCurrentGroup();
+        $group = [
+            'prefix' => $this->mergePrefix($currentGroup['prefix'] ?? '', $options['prefix'] ?? ''),
+            'auth' => $options['auth'] ?? $currentGroup['auth'] ?? false,
+            'open' => $options['open'] ?? $currentGroup['open'] ?? null,
+            'middleware' => array_merge(
+                $currentGroup['middleware'] ?? [],
+                $this->normalizeMiddleware($options['middleware'] ?? [])
+            ),
+        ];
 
-        // Pop middleware from stack
-        $this->middlewareStack = [];
+        // Push group onto stack
+        $this->groupStack[] = $group;
+        // Clear caches since groups changed
+        $this->groupMiddlewareCache = [];
+
+        try {
+            // Execute callback with group context
+            call_user_func($callback, $this);
+        } finally {
+            // Pop group from stack
+            array_pop($this->groupStack);
+            // Clear caches again
+            $this->groupMiddlewareCache = [];
+        }
+    }
+
+    /**
+     * Get cached group middleware with instantiation optimization
+     */
+    private function getCachedGroupMiddleware(): array
+    {
+        $cacheKey = $this->getGroupStackCacheKey();
+
+        if (isset($this->groupMiddlewareCache[$cacheKey])) {
+            return $this->groupMiddlewareCache[$cacheKey];
+        }
+
+        $middleware = [];
+        foreach ($this->groupStack as $group) {
+            foreach ($group['middleware'] as $mw) {
+                $middleware[] = $mw;
+            }
+        }
+
+        $this->groupMiddlewareCache[$cacheKey] = $middleware;
+
+        return $middleware;
+    }
+
+    /**
+     * Generate cache key from group stack state
+     */
+    private function getGroupStackCacheKey(): string
+    {
+        if (empty($this->groupStack)) {
+            return 'empty';
+        }
+
+        $keys = [];
+        foreach ($this->groupStack as $index => $group) {
+            // Create a fingerprint of middleware classes (not instances)
+            $mwClasses = [];
+            foreach ($group['middleware'] as $mw) {
+                $mwClasses[] = get_class($mw);
+            }
+            $keys[] = $index . ':' . md5(serialize($mwClasses));
+        }
+
+        return implode('|', $keys);
+    }
+
+    /**
+     * Clear middleware cache for a specific route
+     */
+    private function clearMiddlewareCache(string $method, string $path): void
+    {
+        $key = $method . ':' . $path;
+        unset($this->middlewareCache[$key]);
+    }
+
+    /**
+     * Merge prefixes for nested groups
+     */
+    private function mergePrefix(string $parent, string $child): string
+    {
+        if (empty($parent)) return $child;
+        if (empty($child)) return $parent;
+
+        return rtrim($parent, '/') . '/' . ltrim($child, '/');
+    }
+
+    /**
+     * Get current group from stack
+     */
+    private function getCurrentGroup(): array
+    {
+        if (empty($this->groupStack)) {
+            return [];
+        }
+
+        return end($this->groupStack);
+    }
+
+    /**
+     * Get current group stack (public for RouteBuilder)
+     */
+    public function getGroupStack(): array
+    {
+        return $this->groupStack;
+    }
+
+    /**
+     * Normalize middleware array with instantiation optimization
+     */
+    private function normalizeMiddleware($middleware): array
+    {
+        if (!is_array($middleware)) {
+            $middleware = [$middleware];
+        }
+
+        $normalized = [];
+        foreach ($middleware as $item) {
+            if (is_string($item)) {
+                // Check if we already have an instance of this middleware
+                if (!isset($this->middlewareInstances[$item])) {
+                    if (!class_exists($item)) {
+                        throw new \InvalidArgumentException(
+                            sprintf('Middleware class "%s" does not exist', $item)
+                        );
+                    }
+
+                    if (!is_subclass_of($item, BaseMiddleware::class)) {
+                        throw new \InvalidArgumentException(
+                            sprintf('Middleware "%s" must extend BaseMiddleware', $item)
+                        );
+                    }
+
+                    $this->middlewareInstances[$item] = new $item();
+                }
+
+                $item = $this->middlewareInstances[$item];
+            }
+
+            if (!$item instanceof BaseMiddleware) {
+                throw new \InvalidArgumentException(
+                    'Middleware must be an instance of BaseMiddleware or a class name string'
+                );
+            }
+
+            $normalized[] = $item;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Get current group middleware
+     */
+    private function getGroupMiddleware(): array
+    {
+        $middleware = [];
+
+        foreach ($this->groupStack as $group) {
+            $middleware = array_merge($middleware, $group['middleware']);
+        }
+
+        return $middleware;
+    }
+
+    /**
+     * Get current group auth configuration
+     */
+    private function getGroupAuth(): bool
+    {
+        if (empty($this->groupStack)) {
+            return false;
+        }
+
+        $current = end($this->groupStack);
+        return $current['auth'] ?? false;
+    }
+
+    /**
+     * Get current group open configuration
+     */
+    private function getGroupOpen(): ?array
+    {
+        if (empty($this->groupStack)) {
+            return null;
+        }
+
+        $current = end($this->groupStack);
+        return $current['open'] ?? null;
+    }
+
+    /**
+     * Apply group prefix to path
+     */
+    private function applyGroupPrefix(string $path): string
+    {
+        $prefix = '';
+
+        foreach ($this->groupStack as $group) {
+            if (!empty($group['prefix'])) {
+                $prefix .= rtrim($group['prefix'], '/') . '/';
+            }
+        }
+
+        if ($prefix !== '') {
+            $path = ltrim($path, '/');
+            return rtrim($prefix, '/') . '/' . $path;
+        }
+
+        return $path;
     }
 
     public function resolve()
@@ -160,26 +420,48 @@ class Router
         $path = $this->request->getPath();
         $method = $this->request->method();
 
-        // check if route exists
         if (!isset($this->routes[$method][$path])) {
             throw new NotFoundException();
         }
 
         $route = $this->routes[$method][$path];
         $callback = $route['callback'];
-        $middlewares = array_merge($this->middlewareStack, $route['middleware']);
+
+        // Use pre-flattened middleware for performance
+        $cacheKey = $method . ':' . $path;
+        if (isset($this->flattenedMiddleware[$cacheKey])) {
+            $middlewares = array_merge(
+                $this->flattenedMiddleware[$cacheKey],
+                $route['middleware']
+            );
+        } else {
+            // Fallback: combine dynamically
+            $middlewares = array_merge(
+                $this->middlewareStack,
+                $route['groupMiddleware'] ?? [],
+                $route['middleware']
+            );
+        }
 
         if (is_string($callback)) {
             return Application::$app->screen->renderScreen($callback);
         }
 
-        // Convert callback to Action instance
         if (is_array($callback)) {
-            /**
-             * @var \Luxid\Foundation\Action $action $action
-             */
-            $action = new $callback[0]();
+            // Validate callback class exists and is instantiable
+            if (!class_exists($callback[0])) {
+                throw new \RuntimeException(
+                    sprintf('Action class "%s" does not exist', $callback[0])
+                );
+            }
 
+            if (!is_subclass_of($callback[0], '\\Luxid\\Foundation\\Action')) {
+                throw new \RuntimeException(
+                    sprintf('Class "%s" must extend \\Luxid\\Foundation\\Action', $callback[0])
+                );
+            }
+
+            $action = new $callback[0]();
             Application::$app->action = $action;
             $action->activity = $callback[1];
             $callback[0] = $action;
@@ -195,10 +477,8 @@ class Router
             }
         }
 
-        // Extract route parameters
         $params = $this->extractRouteParams($path);
 
-        // Execute callback with parameters
         if (!empty($params)) {
             return call_user_func_array($callback, array_merge(
                 [$this->request, $this->response],
@@ -210,31 +490,145 @@ class Router
     }
 
     /**
-     * Extract parameters from route path
-     * Example: /users/{id} -> extracts 'id' from URL
+     * Extract parameters from route path with trailing slash normalization
      */
     private function extractRouteParams(string $routePath): array
     {
         $actualPath = $this->request->getPath();
-        $params = [];
 
-        // Simple param extraction for now
-        // TODO: would enhance this shi later for more complex routing
+        // Normalize trailing slashes
+        $routePath = trim($routePath, '/');
+        $actualPath = trim($actualPath, '/');
+
+        // Handle empty paths
+        if ($routePath === '' && $actualPath === '') {
+            return [];
+        }
+
+        if ($routePath === '' || $actualPath === '') {
+            return [];
+        }
+
         $routeParts = explode('/', $routePath);
         $actualParts = explode('/', $actualPath);
 
-        if (count($routeParts) !== count($actualParts)) {
-            return $params;
+        // Match segments
+        $routeIndex = 0;
+        $actualIndex = 0;
+
+        while ($routeIndex < count($routeParts) && $actualIndex < count($actualParts)) {
+            $routePart = $routeParts[$routeIndex];
+
+            if ($this->isParameter($routePart)) {
+                $paramName = $this->extractParamName($routePart);
+                $isOptional = $this->isOptionalParam($routePart);
+
+                // Store parameter if we have actual segment
+                if ($actualIndex < count($actualParts)) {
+                    $params[$paramName] = $actualParts[$actualIndex];
+                    $actualIndex++;
+                } elseif (!$isOptional) {
+                    // Required parameter missing
+                    return [];
+                }
+                // Optional parameter missing - skip it
+            } else {
+                // Static segment must match
+                if ($routePart !== $actualParts[$actualIndex]) {
+                    // Check if this mismatch could be due to skipped optional params
+                    if ($this->canSkipToNextMatch($routeParts, $routeIndex, $actualParts, $actualIndex)) {
+                        // Skip this route segment and try to match next actual segment
+                        $routeIndex++;
+                        continue;
+                    }
+                    return [];
+                }
+                $actualIndex++;
+            }
+
+            $routeIndex++;
         }
 
-        foreach ($routeParts as $index => $routePart) {
-            if (strpos($routePart, '{') === 0 && strpos($routePart, '}') === strlen($routePart) - 1) {
-                $paramName = trim($routePart, '{}');
-                $params[] = $actualParts[$index];
+        // Check if we've consumed all route parts
+        if ($routeIndex < count($routeParts)) {
+            // Remaining parts must all be optional
+            for ($i = $routeIndex; $i < count($routeParts); $i++) {
+                if (!$this->isOptionalParam($routeParts[$i])) {
+                    return [];
+                }
             }
         }
 
-        return $params;
+        // Check if we have extra actual segments (should match wildcards if we had them)
+        if ($actualIndex < count($actualParts)) {
+            return [];
+        }
+
+        return $params ?? [];
+    }
+
+
+    /**
+     * Check if we can skip to next matching segment
+     */
+    private function canSkipToNextMatch(array $routeParts, int $routeIndex, array $actualParts, int $actualIndex): bool
+    {
+        // Look ahead to see if skipping optional params helps
+        $nextRouteIndex = $routeIndex + 1;
+        while ($nextRouteIndex < count($routeParts)) {
+            if ($this->isOptionalParam($routeParts[$nextRouteIndex])) {
+                $nextRouteIndex++;
+            } else {
+                break;
+            }
+        }
+
+        // If all remaining are optional, we can skip
+        if ($nextRouteIndex >= count($routeParts)) {
+            return true;
+        }
+
+        // Check if skipping optional params would allow a match
+        for ($i = $actualIndex; $i < count($actualParts); $i++) {
+            if ($routeParts[$nextRouteIndex] === $actualParts[$i]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if route part is a parameter
+     */
+    private function isParameter(string $part): bool
+    {
+        return preg_match('/^{([^}]+)}$/', $part);
+    }
+
+    /**
+     * Extract parameter name from {param} or {param?}
+     */
+    private function extractParamName(string $part): string
+    {
+        preg_match('/^{([^}]+)}$/', $part, $matches);
+        $name = $matches[1];
+
+        // Remove optional marker
+        if (substr($name, -1) === '?') {
+            $name = substr($name, 0, -1);
+        }
+
+        return $name;
+    }
+
+
+    /**
+     * Check if parameter is optional
+     */
+    private function isOptionalParam(string $part): bool
+    {
+        return preg_match('/^{([^}]+)\?}$/', $part);
     }
 
     public function getRoutesForInspection(): array
@@ -247,7 +641,10 @@ class Router
                     'method' => $method,
                     'path' => $path,
                     'callback' => $route['callback'],
-                    'middleware' => $route['middleware'] ?? []
+                    'middleware' => $route['middleware'] ?? [],
+                    'groupMiddleware' => $route['groupMiddleware'] ?? [],
+                    'groupAuth' => $route['groupAuth'] ?? false,
+                    'groupOpen' => $route['groupOpen'] ?? null
                 ];
             }
         }
