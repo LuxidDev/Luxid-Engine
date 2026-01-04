@@ -420,10 +420,11 @@ class Router
         $path = $this->request->getPath();
         $method = $this->request->method();
 
-        if (!isset($this->routes[$method][$path])) {
+        if (isset($this->routes[$method][$path])) {
             $route = $this->routes[$method][$path];
             $callback = $route['callback'];
             $params = [];
+            $matchedRoutePath = $path;
         } else {
             // Try to find a parameterized route match
             $foundRoute = null;
@@ -503,8 +504,6 @@ class Router
                 $middlewre->execute();
             }
         }
-
-        $params = $this->extractRouteParams($path);
 
         if (!empty($params)) {
             return call_user_func_array($callback, array_merge(
