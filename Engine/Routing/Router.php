@@ -421,11 +421,38 @@ class Router
         $method = $this->request->method();
 
         if (!isset($this->routes[$method][$path])) {
-            throw new NotFoundException();
-        }
+            $route = $this->routes[$method][$path];
+            $callback = $route['callback'];
+            $params = [];
+        } else {
+            // Try to find a parameterized route match
+            $foundRoute = null;
+            $params = [];
+            $matchedRoutePath = null;
 
-        $route = $this->routes[$method][$path];
-        $callback = $route['callback'];
+            foreach ($this->routes[$method] as $routePath => $routeData) {
+                // Only check routes with parameters
+                if (strpos($routePath, '{') === false) {
+                    continue;
+                }
+
+                // Try to extract parameters using the ROUTE PATTERN
+                $extractedParams = $this->extractRouteParams($routePath);
+                if (!empty($extractedParams)) {
+                    $foundRoute = $routeData;
+                    $params = $extractedParams;
+                    $matchedRoutePath = $routePath;
+                    break;
+                }
+            }
+
+            if (!$foundRoute) {
+                throw new NotFoundException();
+            }
+
+            $route = $foundRoute;
+            $callback = $route['callback'];
+        }
 
         // Use pre-flattened middleware for performance
         $cacheKey = $method . ':' . $path;
