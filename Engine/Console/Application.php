@@ -63,6 +63,15 @@ class Application
         $argv = $argv ?? $_SERVER['argv'];
         $commandName = $argv[1] ?? null;
 
+        // Normailize common flags
+        if (in_array($commandName, ['--version', '-V'], true)) {
+            $commandName = 'version';
+        }
+
+        if (in_array($commandName, ['--help', '-h'], true)) {
+            $commandName = 'help';
+        }
+
         // Show interactive menu if no command
         if ($commandName === null) {
             return $this->showInteractiveMenu();
