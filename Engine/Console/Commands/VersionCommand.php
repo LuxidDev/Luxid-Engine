@@ -12,8 +12,20 @@ class VersionCommand extends Command
     {
         $this->parseArguments($argv);
 
-        $engineVersion = '0.1.0';
         $juiceVersion = '1.0.0';
+
+        // load engine from composer.json
+        $composerFile = __DIR__ . '/../../../composer.json';
+        $engineVersion = 'unknown';
+
+        if (file_exists($composerFile)) {
+            $json = json_decode(file_get_contents($composerFile), true);
+
+            if (isset($json['version'])) {
+                $engineVersion = $json['version'];
+            }
+
+        }
 
         $this->line("🍋 \033[1;36mJuice CLI v{$juiceVersion}\033[0m");
         $this->line("📦 \033[1;33mLuxid Engine v{$engineVersion}\033[0m");
