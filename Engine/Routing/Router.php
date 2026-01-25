@@ -506,10 +506,33 @@ class Router
         }
 
         if (!empty($params)) {
-            return call_user_func_array($callback, array_merge(
-                [$this->request, $this->response],
-                $params
-            ));
+            // Use reflection to properly call the method
+            if (is_array($callback)) {
+                $reflection = new \ReflectionMethod($callback[0], $callback[1]);
+                $parameters = $reflection->getParameters();
+
+                // Build arguments array
+                $args = [];
+
+                // First two parameters should be Request and Response
+                if (count($parameters) > 0 && $parameters[0]->getName() === 'request') {
+                    $args[] = $this->request;
+                }
+                if (count($parameters) > 1 && $parameters[1]->getName() === 'response') {
+                    $args[] = $this->response;
+                }
+
+                // Add route parameters
+                $args = array_merge($args, array_values($params));
+
+                return $reflection->invokeArgs($callback[0], $args);
+            } else {
+                // For closures, use the old method
+                return call_user_func_array($callback, array_merge(
+                    [$this->request, $this->response],
+                    array_values($params)
+                ));
+            }
         }
 
         return call_user_func($callback, $this->request, $this->response);
