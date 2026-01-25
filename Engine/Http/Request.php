@@ -4,6 +4,9 @@ namespace Luxid\Http;
 
 class Request
 {
+    /**
+     * Get the request path without query parameters
+     */
     public function getPath()
     {
         $path = $_SERVER["REQUEST_URI"] ?? '/';
@@ -16,6 +19,9 @@ class Request
         return substr($path, 0, $position);
     }
 
+     /**
+     * Get the HTTP request method
+     */
     public function method()
     {
         // Support method override via _method parameter
@@ -34,6 +40,9 @@ class Request
         return $method;
     }
 
+     /**
+     * Get all request data with automatic sanitization
+     */
     public function getBody()
     {
         $body = [];
@@ -118,6 +127,49 @@ class Request
     {
         $rawInput = file_get_contents('php://input');
         return json_decode($rawInput, true);
+    }
+
+    /**
+     * Get input value by key
+     */
+    public function get(string $key, $default = null)
+    {
+        $body = $this->getBody();
+        return $body[$key] ?? $default;
+    }
+
+    /**
+     * Get all input data
+     */
+    public function all(): array
+    {
+        return $this->getBody();
+    }
+
+    /**
+     * Get only specific keys
+     */
+    public function only(array $keys): array
+    {
+        $body = $this->getBody();
+        $result = [];
+
+        foreach ($keys as $key) {
+            if (isset($body[$key])) {
+                $result[$key] = $body[$key];
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check if input has key
+     */
+    public function has(string $key): bool
+    {
+        $body = $this->getBody();
+        return isset($body[$key]);
     }
 
 }
