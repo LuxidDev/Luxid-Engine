@@ -16,6 +16,7 @@ class Router
     protected ?array $lastRoute = null;
     protected array $middlewareStack = [];
     protected array $globalMiddleware = [];
+    protected array $apiGlobalMiddleware = [];
 
     /**
      * @var array Group context stack
@@ -192,6 +193,10 @@ class Router
         $this->globalMiddleware[] = $middleware;
     }
 
+    public function addApiGlobalMiddleware(BaseMiddleware $middleware)
+    {
+        $this->apiGlobalMiddleware[] = $middleware;
+    }
 
     /**
      * Register multiple routes with group configuration
@@ -463,31 +468,26 @@ class Router
 
         // Determine if this is an API request
         $isApiRequest = strpos($path, '/api/') === 0 ||
-                    (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
-                    (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false);
+                (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+                (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false);
 
-        // Only run global middleware for API routes
+        // Run global middleware (for all requests)
+        foreach ($this->globalMiddleware as $middleware) {
+            $middleware->execute();
+        }
+
+        // Run API-only global middleware if this is an API request
         if ($isApiRequest) {
-            foreach ($this->globalMiddleware as $middleware) {
+            foreach ($this->apiGlobalMiddleware as $middleware) {
                 $middleware->execute();
             }
         }
 
-        // Use pre-flattened middleware for performance
+        // Combine flattened route middleware
         $cacheKey = $method . ':' . $path;
-        if (isset($this->flattenedMiddleware[$cacheKey])) {
-            $middlewares = array_merge(
-                $this->flattenedMiddleware[$cacheKey],
-                $route['middleware']
-            );
-        } else {
-            // Fallback: combine dynamically
-            $middlewares = array_merge(
-                $this->middlewareStack,
-                $route['groupMiddleware'] ?? [],
-                $route['middleware']
-            );
-        }
+        $middlewares = isset($this->flattenedMiddleware[$cacheKey])
+            ? array_merge($this->flattenedMiddleware[$cacheKey], $route['middleware'])
+            : array_merge($this->middlewareStack, $route['groupMiddleware'] ?? [], $route['middleware']);
 
         if (is_string($callback)) {
             return Application::$app->screen->renderScreen($callback);
