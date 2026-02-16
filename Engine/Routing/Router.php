@@ -518,8 +518,8 @@ class Router
             }
 
             // Execute action middleware
-            foreach ($action->getMiddlewares() as $middlewre) {
-                $middlewre->execute();
+            foreach ($action->getMiddlewares() as $middleware) {
+                $middleware->execute();
             }
         }
 
