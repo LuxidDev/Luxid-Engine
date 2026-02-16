@@ -15,6 +15,7 @@ class Router
     protected array $routes = [];
     protected ?array $lastRoute = null;
     protected array $middlewareStack = [];
+    protected array $globalMiddleware = [];
 
     /**
      * @var array Group context stack
@@ -184,6 +185,11 @@ class Router
         }
 
         return $this;
+    }
+
+    public function addGlobalMiddleware(BaseMiddleware $middleware)
+    {
+        $this->globalMiddleware[] = $middleware;
     }
 
 
@@ -453,6 +459,10 @@ class Router
 
             $route = $foundRoute;
             $callback = $route['callback'];
+        }
+
+        foreach ($this->globalMiddleware as $middleware) {
+            $middleware->execute();
         }
 
         // Use pre-flattened middleware for performance

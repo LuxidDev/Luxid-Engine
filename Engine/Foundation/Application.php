@@ -21,7 +21,7 @@ class Application
     public SessionInterface $session;
     public static Application $app;
     public ?Action $action = null;
-    public ?Database $db = null; 
+    public ?Database $db = null;
     public ?DbEntity $user = null;
     public Screen $screen;
 
@@ -44,6 +44,7 @@ class Application
         }
 
         $this->router = new Router($this->request, $this->response);
+        $this->router->addGlobalMiddleware(new \Luxid\Middleware\CorsMiddleware());
         $this->screen = new Screen();
 
         // Initialize database only if config has db settings
