@@ -21,7 +21,8 @@ use Luxid\Console\Commands\{
     MakeApiCommand,
     EnvCheckCommand,
     VersionCommand,
-    HelpCommand
+    HelpCommand,
+    SentinelInstallBridge  // Add this line
 };
 
 class Application
@@ -57,6 +58,7 @@ class Application
             'env:check' => EnvCheckCommand::class,
             'version' => VersionCommand::class,
             'help' => HelpCommand::class,
+            'sentinel:install' => SentinelInstallBridge::class,  // Add this line
         ];
     }
 
@@ -148,6 +150,11 @@ class Application
             }
         }
 
+        // Add Sentinel command if it exists in core commands
+        if (isset($commands['sentinel:install'])) {
+            $menu[] = ["🔐", "sentinel:install", "Install Sentinel authentication package"];
+        }
+
         $menu = array_merge($menu, [
             ["", "", ""],
             ["🔧", "env:check", "Validate environment"],
@@ -183,12 +190,18 @@ class Application
             'Make' => array_filter(array_keys($commands), fn($c) => str_starts_with($c, 'make:')),
         ];
 
+        // Add Sentinel command to its own category
+        if (isset($commands['sentinel:install'])) {
+            $categories['Authentication'] = ['sentinel:install'];
+        }
+
         // Add package commands category
         $packageCommands = array_filter(
             array_keys($commands),
             fn($c) => !isset($this->commands[$c]) &&
                      !str_starts_with($c, 'db:') &&
-                     !str_starts_with($c, 'make:')
+                     !str_starts_with($c, 'make:') &&
+                     $c !== 'sentinel:install'
         );
 
         if (!empty($packageCommands)) {
@@ -220,21 +233,21 @@ class Application
         $this->line("\033[1;36m{$padding}╔══════════════════════════════════════════╗\033[0m");
         $this->line("\033[1;36m{$padding}║           🍋 Juice CLI v1.0             ║\033[0m");
         $this->line("\033[1;36m{$padding}║           🍋 Juice CLI v1.0             ║\033[0m");
-            $this->line("\033[1;36m{$padding}╚══════════════════════════════════════════╝\033[0m");
-        }
-
-        private function getTerminalWidth(): int
-        {
-            return 80; // Default width
-        }
-
-        private function error(string $message): void
-        {
-            echo "\033[31m{$message}\033[0m" . PHP_EOL;
-        }
-
-        private function line(string $message): void
-        {
-            echo $message . PHP_EOL;
-        }
+        $this->line("\033[1;36m{$padding}╚══════════════════════════════════════════╝\033[0m");
     }
+
+    private function getTerminalWidth(): int
+    {
+        return 80; // Default width
+    }
+
+    private function error(string $message): void
+    {
+        echo "\033[31m{$message}\033[0m" . PHP_EOL;
+    }
+
+    private function line(string $message): void
+    {
+        echo $message . PHP_EOL;
+    }
+}
