@@ -13,7 +13,6 @@ class Application
 {
     public static string $ROOT_DIR;
     public string $frame = 'app';
-
     public string $userClass;
     public Router $router;
     public Request $request;
@@ -25,6 +24,11 @@ class Application
     public ?DbEntity $user = null;
     public Screen $screen;
 
+    /**
+     * Registered package providers
+     */
+    protected array $providers = [];
+
     public function __construct($rootPath, array $config)
     {
         $this->userClass = $config['userClass'];
@@ -35,11 +39,9 @@ class Application
         $this->request = new Request();
         $this->response = new Response();
 
-        // Only create Session if not in CLI mode
         if (php_sapi_name() !== 'cli') {
             $this->session = new \Luxid\Http\Session();
         } else {
-            // Create a null session for CLI
             $this->session = new \Luxid\Http\NullSession();
         }
 
@@ -47,19 +49,72 @@ class Application
         $this->router->addGlobalMiddleware(new \Luxid\Middleware\CorsMiddleware());
         $this->screen = new Screen();
 
-        // Initialize database only if config has db settings
         if (isset($config['db'])) {
             $this->db = new Database($config['db']);
         }
 
         $this->user = null;
 
-        // Only check session for user if session exists and is started
         if ($this->session->isStarted()) {
             $primaryValue = $this->session->get('user');
             if ($primaryValue !== null) {
                 $primaryKey = $this->userClass::primaryKey();
                 $this->user = $this->userClass::findOne([$primaryKey => $primaryValue]) ?? null;
+            }
+        }
+
+        // Discover and register package providers
+        $this->discoverProviders();
+        $this->registerProviders();
+    }
+
+    /**
+     * Discover providers from installed packages
+     */
+    protected function discoverProviders(): void
+    {
+        $vendorDir = self::$ROOT_DIR . '/vendor';
+        $installedPath = $vendorDir . '/composer/installed.json';
+
+        if (!file_exists($installedPath)) {
+            return;
+        }
+
+        $installed = json_decode(file_get_contents($installedPath), true);
+
+        // Handle different composer.json formats
+        $packages = $installed['packages'] ?? $installed;
+
+        foreach ($packages as $package) {
+            if (isset($package['extra']['luxid']['providers'])) {
+                foreach ($package['extra']['luxid']['providers'] as $provider) {
+                    if (class_exists($provider)) {
+                        $this->providers[] = $provider;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Register all discovered providers
+     */
+    protected function registerProviders(): void
+    {
+        foreach ($this->providers as $provider) {
+            $instance = new $provider();
+
+            if (method_exists($instance, 'register')) {
+                $instance->register($this);
+            }
+        }
+
+        // Boot providers after all are registered
+        foreach ($this->providers as $provider) {
+            $instance = new $provider();
+
+            if (method_exists($instance, 'boot')) {
+                $instance->boot($this);
             }
         }
     }
