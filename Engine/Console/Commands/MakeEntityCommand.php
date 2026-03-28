@@ -6,93 +6,91 @@ use Luxid\Console\Command;
 
 class MakeEntityCommand extends Command
 {
-    protected string $description = 'Create a new Entity class';
+  protected string $description = 'Create a new Rocket entity';
 
-    public function handle(array $argv): int
-    {
-        $this->parseArguments($argv);
+  public function handle(array $argv): int
+  {
+    $this->parseArguments($argv);
 
-        if (empty($this->args)) {
-            $this->error("Entity name is required");
-            $this->line("Usage: php juice make:entity <name>");
-            return 1;
-        }
-
-        $entityName = $this->args[0];
-        $this->createEntity($entityName);
-
-        return 0;
+    if (empty($this->args)) {
+      $this->error("Entity name is required");
+      $this->line("Usage: php juice make:entity <name>");
+      return 1;
     }
 
-    private function createEntity(string $entityName): void
-    {
-        $this->line("⚡ Creating Entity...");
+    $entityName = $this->args[0];
+    $this->createEntity($entityName);
 
-        $filePath = $this->getAppPath() . '/Entities/' . $entityName . '.php';
+    return 0;
+  }
 
-        $content = <<<PHP
+  private function createEntity(string $entityName): void
+  {
+    $this->line("📦 Creating Rocket entity...");
+
+    $directory = $this->getAppPath() . '/Entities';
+    $filePath = $directory . '/' . $entityName . '.php';
+
+    $content = $this->generateEntityContent($entityName);
+
+    if ($this->createFile($filePath, $content)) {
+      $relativePath = str_replace($this->getProjectRoot() . '/', '', $filePath);
+      $this->success("Entity created successfully!");
+      $this->line("📁 Location: \033[1;34m{$relativePath}\033[0m");
+
+      $this->line("");
+      $this->line("\033[1;33m💡 Next steps:\033[0m");
+      $this->line("1. Add your columns using Rocket attributes");
+      $this->line("2. Create a migration: php juice make:migration create_{$entityName}_table");
+      $this->line("3. Run migration: php juice migrate");
+    } else {
+      $this->error("Failed to create entity");
+    }
+  }
+
+  private function generateEntityContent(string $entityName): string
+  {
+    $tableName = strtolower($entityName) . 's';
+    $className = ucfirst($entityName);
+
+    return <<<PHP
 <?php
+
 namespace App\Entities;
 
-use Luxid\Database\DbEntity;
+use Luxid\ORM\UserEntity;
+use Rocket\Attributes\Entity as EntityAttr;
+use Rocket\Attributes\Column;
+use Rocket\Attributes\Rules\Required;
 
-class {$entityName} extends DbEntity
+#[EntityAttr(table: '{$tableName}')]
+class {$className} extends UserEntity
 {
+    #[Column(primary: true, autoIncrement: true)]
     public int \$id = 0;
+    
+    #[Column]
+    #[Required]
+    public string \$name = '';
+    
+    #[Column(autoCreate: true)]
     public string \$created_at = '';
+    
+    #[Column(autoCreate: true, autoUpdate: true)]
     public string \$updated_at = '';
-
-    public static function tableName(): string
+    
+    public function getDisplayName(): string
     {
-        return '{$this->camelToSnake($entityName)}s';
+        return \$this->name;
     }
-
-    public static function primaryKey(): string
-    {
-        return 'id';
-    }
-
-    public function attributes(): array
-    {
-        return ['created_at', 'updated_at'];
-    }
-
-    public function rules(): array
-    {
-        return [
-            // Add validation rules here
-        ];
-    }
-
-    public function save(): bool
-    {
-        if (\$this->id === 0) {
-            \$this->created_at = date('Y-m-d H:i:s');
-        }
-        \$this->updated_at = date('Y-m-d H:i:s');
-        return parent::save();
-    }
+    
+    // Add your own lifecycle hooks if needed
+    // protected function beforeSave(): void
+    // {
+    //     parent::beforeSave();
+    //     \$this->hashPassword();
+    // }
 }
 PHP;
-
-        if ($this->createFile($filePath, $content)) {
-            $relativePath = str_replace($this->getProjectRoot() . '/', '', $filePath);
-            $this->success("Entity created successfully!");
-            $this->line("📁 Location: \033[1;34m{$relativePath}\033[0m");
-
-            // Show usage example
-            $this->line("");
-            $this->line("\033[1;33m💡 Next steps:\033[0m");
-            $this->line("1. Add properties to the entity class");
-            $this->line("2. Create migration: \033[1;32mphp juice make:migration create_{$this->camelToSnake($entityName)}s_table\033[0m");
-            $this->line("3. Run migrations: \033[1;32mphp juice db:migrate\033[0m");
-        } else {
-            $this->error("Failed to create Entity");
-        }
-    }
-
-    private function camelToSnake(string $input): string
-    {
-        return strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $input));
-    }
+  }
 }
