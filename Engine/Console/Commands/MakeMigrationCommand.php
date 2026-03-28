@@ -119,7 +119,6 @@ PHP;
   private function addColumnTemplate(string $className, string $tableName, string $column): string
   {
     $columnType = $this->guessColumnType($column);
-    $sqlColumnType = $this->getSqlColumnType($columnType);
 
     return <<<PHP
 <?php
@@ -131,14 +130,16 @@ class {$className} extends Migration
 {
     public function up(): void
     {
-        // Add column using raw SQL (since Rocket's table() is for creating tables)
-        \$this->db->execute("ALTER TABLE {$tableName} ADD COLUMN {$column} {$sqlColumnType}");
+        Rocket::alter('{$tableName}', function(\$column) {
+            \$column->{$columnType}('{$column}');
+        });
     }
     
     public function down(): void
     {
-        // Remove the column
-        \$this->db->execute("ALTER TABLE {$tableName} DROP COLUMN {$column}");
+        Rocket::alter('{$tableName}', function(\$column) {
+            \$column->dropColumn('{$column}');
+        });
     }
 }
 PHP;
@@ -156,16 +157,18 @@ class {$className} extends Migration
 {
     public function up(): void
     {
-        // Drop column using raw SQL
-        \$this->db->execute("ALTER TABLE {$tableName} DROP COLUMN {$column}");
+        Rocket::alter('{$tableName}', function(\$column) {
+            \$column->dropColumn('{$column}');
+        });
     }
     
     public function down(): void
     {
-        // You need to know the column definition to add it back
+        // To add back the column, you'd need to know the original definition
         // This is a placeholder - update with the actual column definition
-        \$columnType = "VARCHAR(255)";
-        \$this->db->execute("ALTER TABLE {$tableName} ADD COLUMN {$column} {\$columnType}");
+        Rocket::alter('{$tableName}', function(\$column) {
+            \$column->string('{$column}');
+        });
     }
 }
 PHP;
@@ -183,19 +186,23 @@ class {$className} extends Migration
 {
     public function up(): void
     {
-        // Write your migration logic here
-        // Example: Modify column, rename table, etc.
-        
-        // Using raw SQL
-        // \$this->db->execute("ALTER TABLE table_name MODIFY COLUMN column_name NEW_TYPE");
-        
-        // Or use Rocket's schema builder for new tables only
+        // Write your alter table logic here
+        // Example: modify column, rename column, etc.
+        Rocket::alter('table_name', function(\$column) {
+            // Add new columns
+            // \$column->string('new_column');
+            
+            // Drop columns
+            // \$column->dropColumn('old_column');
+        });
     }
     
     public function down(): void
     {
         // Rollback your changes
-        // \$this->db->execute("ALTER TABLE table_name MODIFY COLUMN column_name OLD_TYPE");
+        Rocket::alter('table_name', function(\$column) {
+            // Reverse the changes
+        });
     }
 }
 PHP;
@@ -214,14 +221,25 @@ class {$className} extends Migration
     public function up(): void
     {
         // Write your migration logic here
-        // Example: \$this->db->execute("CREATE TABLE ...");
-        // Example: Rocket::table('table_name', function(\$column) { ... });
+        Rocket::table('table_name', function(\$column) {
+            \$column->id('id');
+            \$column->string('name');
+        });
+        
+        // Or alter an existing table
+        // Rocket::alter('existing_table', function(\$column) {
+        //     \$column->string('new_column');
+        // });
     }
     
     public function down(): void
     {
         // Rollback your migration logic here
-        // Example: \$this->db->execute("DROP TABLE ...");
+        Rocket::drop('table_name');
+        // Or
+        // Rocket::alter('existing_table', function(\$column) {
+        //     \$column->dropColumn('new_column');
+        // });
     }
 }
 PHP;
@@ -251,19 +269,6 @@ PHP;
     } else {
       return 'string';
     }
-  }
-
-  private function getSqlColumnType(string $type): string
-  {
-    return match ($type) {
-      'string' => 'VARCHAR(255)',
-      'text' => 'TEXT',
-      'integer' => 'INT',
-      'decimal' => 'DECIMAL(10,2)',
-      'boolean' => 'TINYINT(1) DEFAULT 0',
-      'datetime' => 'DATETIME',
-      default => 'VARCHAR(255)',
-    };
   }
 
   private function getNextMigrationNumber(): string
