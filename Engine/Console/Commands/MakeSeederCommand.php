@@ -93,25 +93,7 @@ class {$seederName} extends Seeder
      */
     public function run(): void
     {
-        echo "🌱 Seeding {$entityName}s...\n";
-        
-        // Create sample records
-        for (\$i = 1; \$i <= 10; \$i++) {
-            \${$entityName} = new {$entityName}();
-            \${$entityName}->name = "Sample {$entityName} " . \$i;
-            \${$entityName}->save();
-        }
-        
-        echo "  ✓ Created 10 sample {$entityName}s\n";
-        
-        // You can add more specific records here
-        // Example: Create an admin user
-        // \$admin = new {$entityName}();
-        // \$admin->name = "Admin";
-        // \$admin->email = "admin@example.com";
-        // \$admin->save();
-        
-        echo "✅ {$entityName} seeding completed!\n";
+      // Seeder logic goes here
     }
 }
 PHP;
