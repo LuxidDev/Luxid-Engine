@@ -6,9 +6,7 @@ use Luxid\Routing\Router;
 use Luxid\Http\Response;
 use Luxid\Http\Request;
 use Luxid\Http\SessionInterface;
-use Luxid\Database\Database;
 use Rocket\Connection\Connection;
-use Rocket\ORM\Entity;
 use Luxid\Database\DbEntity;
 
 class Application

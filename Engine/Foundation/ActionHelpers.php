@@ -5,8 +5,8 @@ namespace Luxid\Foundation;
 use Luxid\Http\Request;
 use Luxid\Http\Response;
 use Luxid\Http\Session;
-use Luxid\Database\Database;
 use Luxid\Routing\Router;
+use Rocket\Connection\Connection;
 
 trait ActionHelpers
 {
@@ -43,9 +43,10 @@ trait ActionHelpers
   }
 
   /**
-   * Get the Database instance
+   * Get the Database connection
+   * Returns Rocket\Connection\Connection instead of the old Database class
    */
-  protected function db(): Database
+  protected function db(): Connection
   {
     return Application::$app->db;
   }
