@@ -25,7 +25,9 @@ use Luxid\Console\Commands\{
   SentinelInstallBridge,
   MakeNovaComponentCommand,
   MakeNovaPageCommand,
-  MakeNovaLayoutCommand
+  MakeNovaLayoutCommand,
+  MakeSeederCommand,
+  MakeFactoryCommand,
 };
 
 class Application
@@ -65,6 +67,8 @@ class Application
       'make:nova:component' => MakeNovaComponentCommand::class,
       'make:nova:page' => MakeNovaPageCommand::class,
       'make:nova:layout' => MakeNovaLayoutCommand::class,
+      'make:seeder' => MakeSeederCommand::class,
+      'make:factory' => MakeFactoryCommand::class,
     ];
   }
 
@@ -169,6 +173,7 @@ class Application
       ["", "", ""],
       ["🗄️", "db:*", "Database operations"],
       ["⚡", "make:*", "Generate code"],
+      ["🌱", "make:seeder", "Create a new seeder"],
     ];
 
     // Add package commands to menu
