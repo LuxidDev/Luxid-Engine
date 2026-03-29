@@ -8,6 +8,7 @@ use Luxid\Http\Request;
 use Luxid\Http\SessionInterface;
 use Rocket\Connection\Connection;
 use Luxid\Database\DbEntity;
+use Luxid\Contracts\Auth\AuthManager;
 
 class Application
 {
@@ -23,6 +24,7 @@ class Application
   public ?Connection $db = null;
   public ?DbEntity $user = null;
   public Screen $screen;
+  public ?AuthManager $auth = null;
 
   /**
    * Registered package providers
@@ -118,6 +120,10 @@ class Application
         $instance->boot($this);
       }
     }
+  }
+  public function registerAuth(AuthManager $auth): void
+  {
+    $this->auth = $auth;
   }
 
   public static function isGuest()
