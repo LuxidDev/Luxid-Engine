@@ -115,23 +115,19 @@ class RouteBuilder
     if (isset(Application::$app) && Application::$app->auth) {
       $authManager = Application::$app->auth;
     } elseif (class_exists('Luxid\Sentinel\Sentinel')) {
-      // For backward compatibility, use Sentinel if available
       try {
-        // Use the class name as a string to avoid direct reference
         $sentinelClass = 'Luxid\Sentinel\Sentinel';
         if (method_exists($sentinelClass, 'getManager')) {
           $authManager = $sentinelClass::getManager();
         }
       } catch (\Exception $e) {
-        // Sentinel not initialized or error, fallback to old behavior
+        // Sentinel not initialized
       }
     }
 
     if ($authManager) {
-      // Use the auth manager to create auth middleware
       $this->with(new AuthMiddleware($authManager, $publicActivities));
     } else {
-      // Fallback to old behavior for backward compatibility
       $this->addAuthMiddleware($publicActivities);
     }
 
@@ -158,11 +154,7 @@ class RouteBuilder
    */
   public function open(array $activities = []): self
   {
-    if (empty($activities)) {
-      $activities = [$this->extractActivityFromCallback()];
-    }
-
-    $this->addAuthMiddleware($activities);
+    $this->addPublicMiddleware();
     $this->securityConfigured = true;
     $this->registerRouteIfNeeded();
     return $this;
