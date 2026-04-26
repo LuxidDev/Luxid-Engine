@@ -1,5 +1,2 @@
-/vendor/
-/thoughts/
-/.idea/
-spit.php
-content.txt
+.php-cs-fixer.dist.php
+.php-cs-fixer.cache

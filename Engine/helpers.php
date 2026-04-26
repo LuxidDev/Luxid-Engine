@@ -32,3 +32,38 @@ if (!function_exists('route_group')) {
         Route::group($options, $callback);
     }
 }
+
+if (!function_exists('get')) {
+    function get(string $handler): \Luxid\Routing\RouteMethod
+    {
+        return new \Luxid\Routing\RouteMethod('get', $handler);
+    }
+}
+
+if (!function_exists('post')) {
+    function post(string $handler): \Luxid\Routing\RouteMethod
+    {
+        return new \Luxid\Routing\RouteMethod('post', $handler);
+    }
+}
+
+if (!function_exists('put')) {
+    function put(string $handler): \Luxid\Routing\RouteMethod
+    {
+        return new \Luxid\Routing\RouteMethod('put', $handler);
+    }
+}
+
+if (!function_exists('patch')) {
+    function patch(string $handler): \Luxid\Routing\RouteMethod
+    {
+        return new \Luxid\Routing\RouteMethod('patch', $handler);
+    }
+}
+
+if (!function_exists('delete')) {
+    function delete(string $handler): \Luxid\Routing\RouteMethod
+    {
+        return new \Luxid\Routing\RouteMethod('delete', $handler);
+    }
+}

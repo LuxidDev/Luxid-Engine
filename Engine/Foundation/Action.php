@@ -3,6 +3,7 @@
 namespace Luxid\Foundation;
 
 use Luxid\Middleware\BaseMiddleware;
+use Luxid\Routing\Routes;
 
 class Action
 {
@@ -12,6 +13,15 @@ class Action
   public string $activity = '';
 
   protected array $middlewares = [];
+
+  /**
+   * Define routes for this action
+   * Override this method in your action classes
+   */
+  public static function routes(): Routes
+  {
+    return Routes::new();
+  }
 
   public function getMiddlewares(): array
   {

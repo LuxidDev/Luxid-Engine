@@ -6,84 +6,173 @@ use Luxid\Console\Command;
 
 class MakeActionCommand extends Command
 {
-  protected string $description = 'Create a new Action class';
+    protected string $description = 'Create a new Action class';
 
-  public function handle(array $argv): int
-  {
-    $this->parseArguments($argv);
+    public function handle(array $argv): int
+    {
+        $this->parseArguments($argv);
 
-    if (empty($this->args)) {
-      $this->error("Action name is required");
-      $this->line("Usage: php juice make:action <name>");
-      return 1;
+        if (empty($this->args)) {
+            $this->error('Please provide an action name');
+            $this->line('Usage: php juice make:action <ActionName>');
+            return 1;
+        }
+
+        $actionName = $this->args[0];
+        $actionPath = $this->getAppPath() . '/Actions/' . $actionName . '.php';
+        $actionNamespace = $this->getNamespaceFromPath($actionPath);
+        $actionClass = basename($actionName, '.php');
+
+        // Determine if this is an API or Web action based on command or naming
+        $isApi = str_contains($actionName, 'Api') || $actionName === 'ApiAction' || $this->options['api'] ?? false;
+
+        // Create the action file
+        $content = $this->generateActionContent($actionNamespace, $actionClass, $isApi);
+
+        if ($this->createFile($actionPath, $content)) {
+            $this->info("Action created: app/Actions/{$actionName}.php");
+
+            // Automatically register in the appropriate routes file
+            $this->registerInRoutes($actionClass, $isApi);
+
+            return 0;
+        }
+
+        return 1;
     }
 
-    $actionName = $this->args[0];
-    $this->createAction($actionName);
+    private function generateActionContent(string $namespace, string $className, bool $isApi): string
+    {
+        $methodTemplate = $isApi ?
+            'return Response::success([\'message\' => \'' . strtolower($className) . ' executed successfully\']);' :
+            'return Nova::render(\'Welcome\', [\'title\' => \'' . $className . '\']);';
 
-    return 0;
-  }
+        $useStatements = $isApi ?
+            "use Luxid\Nodes\Response;\nuse App\Entities\User;" :
+            "use Luxid\Nodes\Nova;";
 
-  private function createAction(string $actionName): void
-  {
-    $this->line("⚡ Creating Action...");
+        $routesMethod = $this->generateRoutesMethod($className, $isApi);
 
-    // Handle nested paths (Users/ListAction)
-    if (strpos($actionName, '/') !== false) {
-      $parts = explode('/', $actionName);
-      $className = array_pop($parts);
-      $namespace = 'App\\Actions\\' . implode('\\', $parts);
-      $directory = $this->getAppPath() . '/Actions/' . implode('/', $parts);
-    } else {
-      $className = $actionName;
-      $namespace = 'App\\Actions';
-      $directory = $this->getAppPath() . '/Actions';
-    }
-
-    $filePath = $directory . '/' . $className . '.php';
-
-    $content = <<<PHP
+        return <<<PHP
 <?php
+
 namespace {$namespace};
 
 use Luxid\Foundation\Action;
-use Luxid\Nodes\Response;
+{$useStatements}
 
 class {$className} extends LuxidAction
 {
-    /**
-     * Action method
-     */
+    {$routesMethod}
+
     public function index()
     {
-        // Your action logic here
-        return Response::success([
-          'message' => 'Action executed successfully'
-        ]);
+        {$methodTemplate}
     }
 }
+
 PHP;
-
-    if ($this->createFile($filePath, $content)) {
-      $relativePath = str_replace($this->getProjectRoot() . '/', '', $filePath);
-      $this->success("Action created successfully!");
-      $this->line("📁 Location: \033[1;34m{$relativePath}\033[0m");
-
-      // Show usage example
-      $this->line("");
-      $this->line("\033[1;33m💡 Usage example:\033[0m");
-      $this->line("Add to your routes file:");
-
-      $routeName = strtolower($className);
-
-      $this->line(
-        "  route('{$routeName}.index')
-              ->get('/api/{$routeName}')
-              ->uses({$className}::class, 'index')
-              ->open();"
-      );
-    } else {
-      $this->error("Failed to create Action");
     }
-  }
+
+    private function generateRoutesMethod(string $className, bool $isApi): string
+    {
+        $methodName = strtolower($className);
+        $path = $isApi ? "/api/{$methodName}" : "/{$methodName}";
+
+        if ($isApi) {
+            return <<<'PHP'
+    public static function routes(): \Luxid\Routing\Routes
+    {
+        return \Luxid\Routing\Routes::new()
+            ->prefix('api')
+            ->add('/RESOURCE_NAME_HERE', get('index'))
+            ->add('/RESOURCE_NAME_HERE/{id}', get('show'))
+            ->add('/RESOURCE_NAME_HERE', post('store'))
+            ->add('/RESOURCE_NAME_HERE/{id}', put('update'))
+            ->add('/RESOURCE_NAME_HERE/{id}', delete('destroy'));
+    }
+PHP;
+        }
+
+        return <<<PHP
+    public static function routes(): \Luxid\Routing\Routes
+    {
+        return \Luxid\Routing\Routes::new()
+            ->add('/{$methodName}', get('index'));
+    }
+PHP;
+    }
+
+    private function registerInRoutes(string $className, bool $isApi): void
+    {
+        $routesFile = $isApi ?
+            $this->getProjectRoot() . '/routes/api.php' :
+            $this->getProjectRoot() . '/routes/web.php';
+
+        $registrationLine = "{$className}::routes()->register();";
+
+        if (!file_exists($routesFile)) {
+            // Create routes file if it doesn't exist
+            $content = $isApi ?
+                "<?php\n\n// API Routes\n\nuse App\\Actions\\{$className};\n\n{$registrationLine}\n" :
+                "<?php\n\n// Web Routes\n\nuse App\\Actions\\{$className};\n\n{$registrationLine}\n";
+
+            file_put_contents($routesFile, $content);
+            $this->info("Created routes file and registered {$className}");
+            return;
+        }
+
+        // Read existing routes file
+        $content = file_get_contents($routesFile);
+
+        // Check if already registered
+        if (strpos($content, $registrationLine) !== false) {
+            $this->warning("{$className} already registered in routes file");
+            return;
+        }
+
+        // Check if the use statement exists
+        $useStatement = "use App\\Actions\\{$className};";
+
+        if (strpos($content, $useStatement) === false) {
+            // Add use statement after opening PHP tag
+            $content = preg_replace(
+                '/^<\?php/',
+                "<?php\n\n{$useStatement}",
+                $content,
+                1
+            );
+        }
+
+        // Add registration line before the last line or at the end
+        if (strpos($content, "// Auto-registered actions") !== false) {
+            // There's a section for auto-registered actions
+            $content = preg_replace(
+                '/\/\/ Auto-registered actions/',
+                "// Auto-registered actions\n{$registrationLine}",
+                $content
+            );
+        } else {
+            // Add at the end of the file
+            $content = rtrim($content) . "\n\n{$registrationLine}\n";
+        }
+
+        file_put_contents($routesFile, $content);
+        $this->info("Registered {$className} in " . ($isApi ? 'routes/api.php' : 'routes/web.php'));
+    }
+
+    private function getNamespaceFromPath(string $path): string
+    {
+        $relativePath = str_replace($this->getAppPath(), '', $path);
+        $relativePath = dirname($relativePath);
+        $relativePath = str_replace('/', '\\', $relativePath);
+        $relativePath = trim($relativePath, '\\');
+
+        return $relativePath ? 'App\\Actions\\' . $relativePath : 'App\\Actions';
+    }
+
+    public function getDescription(): string
+    {
+        return $this->description;
+    }
 }
